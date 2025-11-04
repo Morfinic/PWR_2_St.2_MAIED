@@ -12,9 +12,9 @@ try:
         "zone", "officer_id_hash", "type", "notes"
     ])
     # Usun wiersze, które posiadaja NaN w kolumnie
-    print(len(df))
-    df.dropna(axis=0, how='any', inplace=True)
-    print(len(df))
+    # print(len(df))
+    # df.dropna(axis=0, how='any', inplace=True)
+    # print(len(df))
 
     df.to_csv("./Data/nashville_drop.csv")
 except FileNotFoundError:
@@ -75,4 +75,27 @@ sns.countplot(x='subject_race', data=df, order=df['subject_race'].value_counts()
 plt.title('Rozkład zatrzymań ze względu na rasę (subject_race)')
 plt.xlabel('Rasa')
 plt.ylabel('Liczba zatrzymań')
+plt.show()
+
+print("Zatrzymania według wykroczenia")
+print(f"Liczba unikalnych typów wykroczeń: {df['violation'].nunique()}")
+
+# Ilość wystąpień
+print("\nTop 10 najczęstszych wykroczeń:")
+top_10_violations = df['violation'].value_counts()
+print(top_10_violations)
+
+# Procenty wystąpień
+print("\nUdział procentowy:")
+print((df['violation'].value_counts(normalize=True) * 100).round(2).astype(str) + '%')
+
+plt.figure(figsize=(10, 7))
+sns.countplot(
+    y='violation',
+    data=df,
+    order=top_10_violations.index
+)
+plt.title('Rozkład zatrzymań ze względu na wykroczenie')
+plt.xlabel('Liczba zatrzymań')
+plt.ylabel('Typ wykroczenia')
 plt.show()
