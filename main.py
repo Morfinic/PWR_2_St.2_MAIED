@@ -1,82 +1,59 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import colormaps
 import seaborn as sns
+from dython.nominal import associations
+from mlxtend.preprocessing import TransactionEncoder
+from mlxtend.frequent_patterns import apriori, association_rules
+from sklearn.cluster import KMeans
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, IsolationForest
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
-import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
 
-df = None
+# Wczytywanie danych
+df = pd.read_csv("Data/nashville_sample.csv", low_memory=False)
+sns.set_theme(style="whitegrid", rc={'figure.figsize':(10, 6)})
 
-try:
-    df = pd.read_csv("./Data/nashville.csv", low_memory=False)
-    # Usun kolumny ktore mozna zignorowac do analizy
-    df.drop(inplace=True, columns=[
-        "raw_row_number", "location", "lat", "lng", "reporting_area",
-        "zone", "officer_id_hash", "type", "notes", "search_person", "search_vehicle",
-        "date", "vehicle_registration_state", "raw_suspect_ethnicity", "raw_driver_searched",
-        "raw_passenger_searched", "raw_search_consent", "raw_search_inventory", "raw_search_plain_view",
-        'raw_verbal_warning_issued', 'raw_written_warning_issued',
-        'raw_traffic_citation_issued', 'raw_misd_state_citation_issued',
-        'raw_search_arrest', 'raw_search_warrant'
-    ])
-    # Usun wiersze, które posiadaja NaN w kolumnie
-    print(len(df))
-    # df.dropna(axis=0, how='any', inplace=True)
-    # print(len(df))
-    n_samples = 50_000
-    stratify_columns_list = ["subject_race", "subject_sex"]
-
-    age_bins = [0, 17, 25, 35, 45, 55, 65, np.inf]
-    age_labels = ['0-17', '18-25', '26-35', '36-45', '46-55', '56-65', '65+']
-
-    df["age_bin"] = pd.cut(
-        df["subject_age"],
-        bins=age_bins,
-        labels=age_labels,
-        right=True
-    )
-
-    if df['age_bin'].isnull().any():
-        df['age_bin'] = df['age_bin'].cat.add_categories('Unknown_Age').fillna('Unknown_Age')
-
-    helper_column = "combined_stratify_key"
-    final_stratify_list = stratify_columns_list + ["age_bin"]
-
-    df[helper_column] = (
-        df[final_stratify_list]
-        .astype(str)
-        .agg('_'.join, axis=1)
-    )
-
-    counts = df[helper_column].value_counts()
-    min_count_threshold = 10
-
-    rare_combinations = counts[counts < min_count_threshold].index
-
-    if len(rare_combinations) > 0:
-        df[helper_column] = df[helper_column].replace(rare_combinations, "other_combinations")
-
-    sample_frac = n_samples / len(df)
-
-    _, df_sample = train_test_split(
-        df,
-        test_size=sample_frac,
-        stratify=df[helper_column],
-        random_state=42
-    )
-
-    df_sample = df_sample.drop(columns=[helper_column, "age_bin"])
-
-    print(len(df_sample))
-
-    df_sample.to_csv("./Data/nashville_sample.csv", index=False)
-
-    # df.to_csv("./Data/nashville_drop.csv")
-except FileNotFoundError:
-    df = pd.read_csv("./Data/nashville_sample.csv", low_memory=False)
-
-# print(df.columns.values)
-
-# sns.set(style="whitegrid", rc={'figure.figsize':(10, 6)})
+print(f"Kolumny danych:\n{df.columns.values}\n")
+#
+# # Rozkład zatrzymań w ciągu doby
+# time_df = pd.DataFrame()
+# time_df["time_obj"] = pd.to_datetime(df["time"], format="%H:%M:%S", errors="coerce")
+# time_df["hour_of_day"] = time_df["time_obj"].dt.hour
+#
+# hourly_distribution = time_df["hour_of_day"].value_counts().sort_index()
+# hourly_order = sorted(time_df['hour_of_day'].unique())
+#
+# plt.figure(figsize=(12, 6))
+# sns.countplot(
+#     x='hour_of_day',
+#     data=time_df,
+#     order=hourly_order,
+# )
+# plt.title('Rozkład liczby zatrzymań w ciągu doby', fontsize=16)
+# plt.xlabel('Godzina (0-23)')
+# plt.ylabel('Liczba zatrzymań')
+# plt.show()
+#
+# bins = [-1, 6, 12, 18, 24]
+# labels = ["Noc", "Rano", "Popołudnie", "Wieczór"]
+#
+# time_df["day_timeframe"] = pd.cut(
+#     time_df["hour_of_day"],
+#     bins=bins,
+#     labels=labels,
+#     right=True
+# )
+# plt.figure(figsize=(8, 5))
+# sns.countplot(x='day_timeframe', data=time_df, order=labels)
+# plt.title('Rozkład zatrzymań wg pory dnia')
+# plt.xlabel('Pora dnia')
+# plt.ylabel('Liczba zatrzymań')
+# plt.show()
+#
+# # Rozkład wieku zatrzymanych
 # anal_col = "subject_age"
 #
 # # Analiza wieku
@@ -114,14 +91,15 @@ except FileNotFoundError:
 #
 # plt.title(f'Rozkład wieku zatrzymanych (kolumna: {anal_col})')
 # plt.xlabel('Wiek')
-# plt.ylabel('Liczba obserwacji (częstość)')
+# plt.ylabel('Liczba zatrzymań')
 # plt.legend()
 # plt.show()
 #
+# # Rozkład zatrzymań ze względu na rasę
 # # Analiza rasy
 # anal_col = "subject_race"
 # print("\nZatrzymania według rasy")
-# print(f"Udział procentowy: {(df[anal_col].value_counts(normalize=True) * 100).round(2)}%")
+# print(f"Udział procentowy: {(df[anal_col].value_counts(normalize=True) * 100).round(2).astype(str) + '%'}")
 #
 # # Wykres
 # plt.figure(figsize=(10, 5)) # Definiujemy rozmiar dla tego konkretnego wykresu
@@ -131,6 +109,33 @@ except FileNotFoundError:
 # plt.ylabel('Liczba zatrzymań')
 # plt.show()
 #
+# # Rozkład zatrzymań ze względu na płeć
+# counts = df["subject_sex"].value_counts()
+# print(counts)
+#
+# print("\nProcent")
+# percentages = (df["subject_sex"].value_counts(normalize=True) * 100).round(2)
+# print(percentages.astype(str) + '%')
+#
+# counts = df["subject_sex"].value_counts()
+# plt.figure(figsize=(8, 8))
+# counts.plot(
+#         kind='pie',
+#         autopct='%1.1f%%',
+#         startangle=90,
+#         labels=None,
+#         pctdistance=0.85,
+#         explode=[0.01] * len(counts)
+#     )
+#
+# plt.title(f'Rozkład płci (kolumna: {"subject_sex"})', fontsize=16)
+# plt.ylabel('')
+# plt.legend(counts.index, title="Płeć", loc="best")
+# plt.axis('equal')
+#
+# plt.show()
+#
+# # Rozkład zatrzymań ze względu na wykorczenie
 # print("Zatrzymania według wykroczenia")
 # print(f"Liczba unikalnych typów wykroczeń: {df['violation'].nunique()}")
 #
@@ -152,4 +157,119 @@ except FileNotFoundError:
 # plt.title('Rozkład zatrzymań ze względu na wykroczenie')
 # plt.xlabel('Liczba zatrzymań')
 # plt.ylabel('Typ wykroczenia')
+# plt.show()
+#
+# anal_col = "search_conducted"
+#
+# # Analiza wieku
+# print(f"\nAnaliza rozkładu kolumny: {anal_col}")
+# print("Rozkład:")
+# print(df[anal_col].describe())
+#
+# print("\nUdział procentowy:")
+# print((df[anal_col].value_counts(normalize=True) * 100).round(2).astype(str) + '%')
+
+# Analiza relacji pomiędzy zmiennymi
+columns_to_analyze = [
+    'time',
+    'subject_age',
+    'subject_race',
+    'subject_sex',
+    'violation',
+    'arrest_made',
+    'citation_issued',
+    'warning_issued',
+    'contraband_found',
+    'contraband_drugs',
+    'contraband_weapons',
+    'frisk_performed',
+    'search_conducted',
+    'search_basis',
+]
+
+cols_present = [c for c in columns_to_analyze if c in df.columns]
+df_subset = df[cols_present]
+
+assoc_results = associations(
+    df_subset,
+    nominal_columns='auto',
+    numerical_columns='auto',
+    mark_columns=False,
+    nom_nom_assoc='cramer',
+    num_num_assoc='pearson',
+    figsize=(12, 12),
+    annot=True,
+    fmt='.2f',
+    cmap=colormaps["coolwarm"],
+    title='Macierz asoscjacji'
+)
+pd_tmp = assoc_results["corr"]
+pd_tmp.to_csv("assoc.csv", encoding='utf-8', index=False, header=True)
+
+# # Ekstrakcja wiedzy
+# df_prep = df.copy()
+# df_prep["time_obj"] = pd.to_datetime(df["time"], format="%H:%M:%S", errors="coerce")
+# df_prep["hour_of_day"] = df_prep["time_obj"].dt.hour
+# df_prep = df_prep.dropna(subset=["hour_of_day"])
+# df_prep["hour_of_day"] = df_prep["hour_of_day"].astype(int)
+#
+# target_var = "outcome"
+#
+# t10_violations = df_prep['violation'].value_counts().head(10)
+# df_prep["violations_simplified"] = df_prep["violation"].apply(lambda x: x if x in t10_violations.index else "other")
+#
+# feature_list = ["subject_age", "subject_race", "subject_sex", "violations_simplified", "hour_of_day"]
+# df_model = df_prep[feature_list + [target_var]].dropna(subset=[target_var])
+#
+# imputer = SimpleImputer(strategy='median')
+# df_model["subject_age"] = imputer.fit_transform(df_model[["subject_age"]])
+#
+# X = pd.get_dummies(df_model[feature_list], drop_first=True)
+# y = df_model[target_var]
+#
+# X_train, X_test, y_train, y_test = train_test_split(
+#     X, y,
+#     test_size=0.3,
+#     random_state=42,
+#     stratify=y
+# )
+#
+# scaler = StandardScaler()
+# X_train[["subject_age", "hour_of_day"]] = scaler.fit_transform(X_train[["subject_age", "hour_of_day"]])
+# X_test[["subject_age", "hour_of_day"]] = scaler.transform(X_test[["subject_age", "hour_of_day"]])
+#
+# model = RandomForestClassifier(
+#     random_state=42,
+#     class_weight="balanced",
+#     n_estimators=100
+# )
+#
+# model.fit(X_train, y_train)
+#
+# y_pred = model.predict(X_test)
+# print(classification_report(y_test, y_pred))
+#
+# cm = confusion_matrix(y_test, y_pred)
+# class_labels = model.classes_
+#
+# plt.figure(figsize=(8, 6))
+# sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+#             xticklabels=class_labels,
+#             yticklabels=class_labels)
+# plt.title('Macierz Pomyłek')
+# plt.xlabel('Przewidziane')
+# plt.ylabel('Rzeczywiste')
+# plt.show()
+#
+# importances = model.feature_importances_
+# feature_names = X_train.columns
+#
+# feature_importance_df = pd.DataFrame({
+#     'Feature': feature_names,
+#     'Importance': importances
+# }).sort_values(by='Importance', ascending=False)
+#
+# plt.figure(figsize=(10, 8))
+# sns.barplot(x='Importance', y='Feature', data=feature_importance_df.head(15))
+# plt.title('Top 15 Zmiennych mających wpływ na przewidywanie aresztowania')
 # plt.show()
