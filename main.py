@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import colormaps
@@ -170,106 +171,106 @@ print(f"Kolumny danych:\n{df.columns.values}\n")
 # print((df[anal_col].value_counts(normalize=True) * 100).round(2).astype(str) + '%')
 
 # Analiza relacji pomiędzy zmiennymi
-columns_to_analyze = [
-    'time',
-    'subject_age',
-    'subject_race',
-    'subject_sex',
-    'violation',
-    'arrest_made',
-    'citation_issued',
-    'warning_issued',
-    'contraband_found',
-    'contraband_drugs',
-    'contraband_weapons',
-    'frisk_performed',
-    'search_conducted',
-    'search_basis',
+# columns_to_analyze = [
+#     'time',
+#     'subject_age',
+#     'subject_race',
+#     'subject_sex',
+#     'violation',
+#     'arrest_made',
+#     'citation_issued',
+#     'warning_issued',
+#     'contraband_found',
+#     'contraband_drugs',
+#     'contraband_weapons',
+#     'frisk_performed',
+#     'search_conducted',
+#     'search_basis',
+# ]
+#
+# cols_present = [c for c in columns_to_analyze if c in df.columns]
+# df_subset = df[cols_present]
+#
+# assoc_results = associations(
+#     df_subset,
+#     nominal_columns='auto',
+#     numerical_columns='auto',
+#     mark_columns=False,
+#     nom_nom_assoc='cramer',
+#     num_num_assoc='pearson',
+#     figsize=(12, 12),
+#     annot=True,
+#     fmt='.2f',
+#     cmap=colormaps["coolwarm"],
+#     title='Macierz asoscjacji'
+# )
+# pd_tmp = assoc_results["corr"]
+# pd_tmp.to_csv("assoc.csv", encoding='utf-8', index=False, header=True)
+
+# Ekstrakcja wiedzy
+df_prep = df.copy()
+df_prep["time_obj"] = pd.to_datetime(df["time"], format="%H:%M:%S", errors="coerce")
+df_prep["hour_of_day"] = df_prep["time_obj"].dt.hour
+df_prep = df_prep.dropna(subset=["hour_of_day"])
+df_prep["hour_of_day"] = df_prep["hour_of_day"].astype(int)
+
+target_var = "arrest_made"
+
+feature_list = [
+    "subject_age", "subject_race", "subject_sex", "hour_of_day"
 ]
+df_model = df_prep[feature_list + [target_var]].dropna(subset=[target_var])
 
-cols_present = [c for c in columns_to_analyze if c in df.columns]
-df_subset = df[cols_present]
+imputer = SimpleImputer(strategy="median")
+df_model["subject_age"] = imputer.fit_transform(df_model[["subject_age"]])
 
-assoc_results = associations(
-    df_subset,
-    nominal_columns='auto',
-    numerical_columns='auto',
-    mark_columns=False,
-    nom_nom_assoc='cramer',
-    num_num_assoc='pearson',
-    figsize=(12, 12),
-    annot=True,
-    fmt='.2f',
-    cmap=colormaps["coolwarm"],
-    title='Macierz asoscjacji'
+X = pd.get_dummies(df_model[feature_list], drop_first=True)
+y = df_model[target_var]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,
+    random_state=42,
+    stratify=y
 )
-pd_tmp = assoc_results["corr"]
-pd_tmp.to_csv("assoc.csv", encoding='utf-8', index=False, header=True)
 
-# # Ekstrakcja wiedzy
-# df_prep = df.copy()
-# df_prep["time_obj"] = pd.to_datetime(df["time"], format="%H:%M:%S", errors="coerce")
-# df_prep["hour_of_day"] = df_prep["time_obj"].dt.hour
-# df_prep = df_prep.dropna(subset=["hour_of_day"])
-# df_prep["hour_of_day"] = df_prep["hour_of_day"].astype(int)
-#
-# target_var = "outcome"
-#
-# t10_violations = df_prep['violation'].value_counts().head(10)
-# df_prep["violations_simplified"] = df_prep["violation"].apply(lambda x: x if x in t10_violations.index else "other")
-#
-# feature_list = ["subject_age", "subject_race", "subject_sex", "violations_simplified", "hour_of_day"]
-# df_model = df_prep[feature_list + [target_var]].dropna(subset=[target_var])
-#
-# imputer = SimpleImputer(strategy='median')
-# df_model["subject_age"] = imputer.fit_transform(df_model[["subject_age"]])
-#
-# X = pd.get_dummies(df_model[feature_list], drop_first=True)
-# y = df_model[target_var]
-#
-# X_train, X_test, y_train, y_test = train_test_split(
-#     X, y,
-#     test_size=0.3,
-#     random_state=42,
-#     stratify=y
-# )
-#
-# scaler = StandardScaler()
-# X_train[["subject_age", "hour_of_day"]] = scaler.fit_transform(X_train[["subject_age", "hour_of_day"]])
-# X_test[["subject_age", "hour_of_day"]] = scaler.transform(X_test[["subject_age", "hour_of_day"]])
-#
-# model = RandomForestClassifier(
-#     random_state=42,
-#     class_weight="balanced",
-#     n_estimators=100
-# )
-#
-# model.fit(X_train, y_train)
-#
-# y_pred = model.predict(X_test)
-# print(classification_report(y_test, y_pred))
-#
-# cm = confusion_matrix(y_test, y_pred)
-# class_labels = model.classes_
-#
-# plt.figure(figsize=(8, 6))
-# sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-#             xticklabels=class_labels,
-#             yticklabels=class_labels)
-# plt.title('Macierz Pomyłek')
-# plt.xlabel('Przewidziane')
-# plt.ylabel('Rzeczywiste')
-# plt.show()
-#
-# importances = model.feature_importances_
-# feature_names = X_train.columns
-#
-# feature_importance_df = pd.DataFrame({
-#     'Feature': feature_names,
-#     'Importance': importances
-# }).sort_values(by='Importance', ascending=False)
-#
-# plt.figure(figsize=(10, 8))
-# sns.barplot(x='Importance', y='Feature', data=feature_importance_df.head(15))
-# plt.title('Top 15 Zmiennych mających wpływ na przewidywanie aresztowania')
-# plt.show()
+scaler = StandardScaler()
+num_cols = ["subject_age", "hour_of_day"]
+X_train[num_cols] = scaler.fit_transform(X_train[num_cols])
+X_test[num_cols] = scaler.transform(X_test[num_cols])
+
+model = RandomForestClassifier(
+    random_state=42,
+    class_weight="balanced",
+    n_estimators=100
+)
+
+model.fit(X_train, y_train)
+
+y_pred = model.predict(X_test)
+print(classification_report(y_test, y_pred))
+
+cm = confusion_matrix(y_test, y_pred)
+class_labels = model.classes_
+
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='YlGnBu',
+            xticklabels=class_labels,
+            yticklabels=class_labels)
+plt.title('Macierz Pomyłek')
+plt.xlabel('Przewidziane')
+plt.ylabel('Rzeczywiste')
+plt.show()
+
+importances = model.feature_importances_
+feature_names = X_train.columns
+
+feature_importance_df = pd.DataFrame({
+    'Feature': feature_names,
+    'Importance': importances
+}).sort_values(by='Importance', ascending=False)
+
+plt.figure(figsize=(16, 10))
+sns.barplot(x='Importance', y='Feature', data=feature_importance_df.head(5))
+plt.title('Top 15 Zmiennych mających wpływ na przewidywanie aresztowania')
+plt.show()
